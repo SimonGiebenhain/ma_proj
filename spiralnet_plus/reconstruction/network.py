@@ -197,18 +197,16 @@ class VAE(nn.Module):
         return x
 
     def sample_latent(self, mu, logvar):
-        if self.training:
-            std = torch.exp(0.5 * logvar)
-            eps = torch.randn_like(std)
-            return mu + std * eps
-        else:
-            return mu
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + std * eps
 
 
-    def forward(self, x):
+    def forward(self, x, also_give_map=False):
         mu, logvar = self.encode(x)
         z = self.sample_latent(mu, logvar)
-        if self.training:
-            return self.decode(z), mu, logvar
+        if also_give_map:
+            return self.decode(z), self.decode(mu), mu, logvar
         else:
-            return self.decode(z)
+            return self.decode(z), mu, logvar
+
