@@ -3,7 +3,7 @@ import os
 import torch
 import torch.nn.functional as F
 
-lam = 0.1
+lam = 0.001
 runVAE = True
 
 
