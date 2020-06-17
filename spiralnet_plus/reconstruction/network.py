@@ -51,7 +51,6 @@ class AE(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.latent_channels = latent_channels
-        self.latent_channels = latent_channels
         self.spiral_indices = spiral_indices
         self.down_transform = down_transform
         self.up_transform = up_transform
@@ -123,3 +122,93 @@ class AE(nn.Module):
         z = self.encoder(x)
         out = self.decoder(z)
         return out
+
+
+class VAE(nn.Module):
+    def __init__(self, in_channels, out_channels, latent_channels,
+                 spiral_indices, down_transform, up_transform):
+        super(VAE, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.latent_channels = latent_channels
+        self.spiral_indices = spiral_indices
+        self.down_transform = down_transform
+        self.up_transform = up_transform
+        self.num_vert = self.down_transform[-1].size(0)
+
+        # encoder
+        self.en_layers = nn.ModuleList()
+        for idx in range(len(out_channels)):
+            if idx == 0:
+                self.en_layers.append(
+                    SpiralEnblock(in_channels, out_channels[idx],
+                                  self.spiral_indices[idx]))
+            else:
+                self.en_layers.append(
+                    SpiralEnblock(out_channels[idx - 1], out_channels[idx],
+                                  self.spiral_indices[idx]))
+
+        self.en_mu = nn.Linear(self.num_vert * out_channels[-1], latent_channels)
+        self.en_logvar = nn.Linear(self.num_vert * out_channels[-1], latent_channels)
+
+        # decoder
+        self.de_layers = nn.ModuleList()
+        self.de_layers.append(
+            nn.Linear(latent_channels, self.num_vert * out_channels[-1]))
+        for idx in range(len(out_channels)):
+            if idx == 0:
+                self.de_layers.append(
+                    SpiralDeblock(out_channels[-idx - 1],
+                                  out_channels[-idx - 1],
+                                  self.spiral_indices[-idx - 1]))
+            else:
+                self.de_layers.append(
+                    SpiralDeblock(out_channels[-idx], out_channels[-idx - 1],
+                                  self.spiral_indices[-idx - 1]))
+        self.de_layers.append(
+            SpiralConv(out_channels[0], in_channels, self.spiral_indices[0]))
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for name, param in self.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0)
+            else:
+                nn.init.xavier_uniform_(param)
+
+    def encode(self, x):
+        for i, layer in enumerate(self.en_layers):
+            x = layer(x, self.down_transform[i])
+        x = x.view(-1, self.en_mu.weight.size(1))
+        return self.en_mu(x), self.en_logvar(x)
+
+    def decode(self, x):
+        num_layers = len(self.de_layers)
+        num_features = num_layers - 2
+        for i, layer in enumerate(self.de_layers):
+            if i == 0:
+                x = layer(x)
+                x = x.view(-1, self.num_vert, self.out_channels[-1])
+            elif i != num_layers - 1:
+                x = layer(x, self.up_transform[num_features - i])
+            else:
+                x = layer(x)
+        return x
+
+    def sample_latent(self, mu, logvar):
+        if self.training:
+            std = torch.exp(0.5 * logvar)
+            eps = torch.randn_like(std)
+            return mu + std * eps
+        else:
+            return mu
+
+
+    def forward(self, x):
+        mu, logvar = self.encode(x)
+        z = self.sample_latent(mu, logvar)
+        if self.training:
+            return self.decode(z), mu, logvar
+        else:
+            return self.decode(z)

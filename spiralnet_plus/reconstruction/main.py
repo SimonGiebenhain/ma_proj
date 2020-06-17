@@ -8,7 +8,7 @@ import torch.backends.cudnn as cudnn
 import torch_geometric.transforms as T
 from psbody.mesh import Mesh
 
-from reconstruction import AE, run, eval_error
+from reconstruction import AE, VAE, run, eval_error
 from datasets import MeshData
 from utils import utils, writer, DataLoader, mesh_sampling
 
@@ -112,7 +112,7 @@ up_transform_list = [
 del tmp
 
 
-model = AE(args.in_channels, args.out_channels, args.latent_channels,
+model = VAE(args.in_channels, args.out_channels, args.latent_channels,
            spiral_indices_list, down_transform_list,
            up_transform_list).to(device)
 del up_transform_list, down_transform_list, spiral_indices_list
@@ -139,11 +139,9 @@ train_loader = DataLoader(meshdata.train_dataset,
                           shuffle=True)
 print('creating testing DataLoader')
 test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size)
-del meshdata
 
 run(model, train_loader, test_loader, args.epochs, optimizer, scheduler,
     writer, device)
-del train_loader, test_loader
 print('Creating MeshData obj')
 meshdata = MeshData(args.data_fp,
                     template_fp,

@@ -1,14 +1,16 @@
-classification/
+.idea/
+
+spiralnet_plus/classification/
 __pycache__/
 **/out/
 INPUT.md
 *.pyc
 
-data/*
-!data/CoMA/
+spiralnet_plus/data/*
+!spiralnet_plus_data/CoMA/
 
-data/CoMA/*
-!data/CoMA/template/
+spiralnet_plus/data/CoMA/*
+!spiralnet_plus/data/CoMA/template/
 
 mesh
 mesh/*

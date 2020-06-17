@@ -3,6 +3,8 @@ import os
 import torch
 import torch.nn.functional as F
 
+lam = 0.1
+runVAE = True;
 
 def run(model, train_loader, test_loader, epochs, optimizer, scheduler, writer,
         device):
@@ -33,13 +35,18 @@ def train(model, optimizer, loader, device):
     for data in loader:
         optimizer.zero_grad()
         x = data.x.to(device)
-        out = model(x)
-        loss = F.l1_loss(out, x, reduction='mean')
+        if runVAE:
+            out, mu, logvar = model(x)
+            reconstruciton_loss = F.l1_loss(out, x, reduction='mean')
+            KL_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+            loss = reconstruciton_loss + lam * KL_div
+        else:
+            out = model(x)
+            loss = F.l1_loss(out, x, reduction='mean')
         loss.backward()
         total_loss += loss.item()
         optimizer.step()
     return total_loss / len(loader)
-
 
 def test(model, loader, device):
     model.eval()
@@ -51,7 +58,6 @@ def test(model, loader, device):
             pred = model(x)
             total_loss += F.l1_loss(pred, x, reduction='mean')
     return total_loss / len(loader)
-
 
 def eval_error(model, test_loader, device, meshdata, out_dir):
     model.eval()
