@@ -55,6 +55,7 @@ class AE(nn.Module):
         self.down_transform = down_transform
         self.up_transform = up_transform
         self.num_vert = self.down_transform[-1].size(0)
+        self.isVAE = False
 
         # encoder
         self.en_layers = nn.ModuleList()
@@ -126,7 +127,7 @@ class AE(nn.Module):
 
 class VAE(nn.Module):
     def __init__(self, in_channels, out_channels, latent_channels,
-                 spiral_indices, down_transform, up_transform):
+                 spiral_indices, down_transform, up_transform, lam):
         super(VAE, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -135,6 +136,9 @@ class VAE(nn.Module):
         self.down_transform = down_transform
         self.up_transform = up_transform
         self.num_vert = self.down_transform[-1].size(0)
+        self.lam = lam
+        self.is_vae = True
+
 
         # encoder
         self.en_layers = nn.ModuleList()

@@ -8,7 +8,7 @@ import torch.backends.cudnn as cudnn
 import torch_geometric.transforms as T
 from psbody.mesh import Mesh
 
-from reconstruction import AE, VAE, run, eval_error
+from reconstruction import AE, VAE, run, eval_error, test
 from datasets import MeshData
 from utils import utils, writer, DataLoader, mesh_sampling
 
@@ -114,8 +114,10 @@ del tmp
 
 model = VAE(args.in_channels, args.out_channels, args.latent_channels,
            spiral_indices_list, down_transform_list,
-           up_transform_list).to(device)
+           up_transform_list, 0.001).to(device)
+
 del up_transform_list, down_transform_list, spiral_indices_list
+
 print('Number of parameters: {}'.format(utils.count_parameters(model)))
 print(model)
 
@@ -140,12 +142,14 @@ train_loader = DataLoader(meshdata.train_dataset,
 print('creating testing DataLoader')
 test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size)
 
-run(model, train_loader, test_loader, args.epochs, optimizer, scheduler,
-    writer, device)
-print('Creating MeshData obj')
-meshdata = MeshData(args.data_fp,
-                    template_fp,
-                    split=args.split,
-                    test_exp=args.test_exp)
-print('creating training DataLoader')
-eval_error(model, test_loader, device, meshdata, args.out_dir)
+data_mean = meshdata.mean
+data_std = meshdata.std
+del meshdata
+
+run(model, train_loader, test_loader, args.epochs, optimizer, scheduler, writer, device)
+del train_loader
+
+#model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'checkpoint_300.pt'), map_location=torch.device('cpu'))[
+#                          'model_state_dict'])
+
+eval_error(model, test_loader, device, data_mean, data_std, args.out_dir)
