@@ -32,7 +32,11 @@ def construct_geometric_object(obj_fp, offset):
     )
     return obj
 
-
+#[[0, "rgb(0,60,170)"],
+#                    [0.25, "rgb(5,255,255)"],
+#                    [0.5, "rgb(255,255,0)"],
+#                    [0.75, "rgb(250,0,0)"],
+#                    [1, "rgb(128,0,0)"]],
 def get_go_from_data(v, f, color, color_min, color_max, offset, is_first=False):
 
     template_obj = go.Mesh3d(
@@ -40,7 +44,10 @@ def get_go_from_data(v, f, color, color_min, color_max, offset, is_first=False):
         y=v[:, 1] + offset[1],
         z=v[:, 2] + offset[2],
         colorbar_title='z',
-        colorscale=px.colors.sequential.matter,
+        colorscale=[[0, "rgb(255,255,255)"],
+                    [0.3, "rgb(255,210,0)"],
+                    [0.6, "rgb(200,0,0)"],
+                    [1, "rgb(100,0,0)"]],
         intensity=color,
         cmin=color_min,
         cmax=color_max,
@@ -137,7 +144,7 @@ model_vae.eval()
 
 #reconstruct
 rec_ae = model_ae(batch.x)
-rec_vae, _, _ = model_vae(batch.x)
+_, rec_vae, _, _ = model_vae(batch.x)
 
 # denormalize
 batch.x *= std
@@ -209,8 +216,8 @@ layout = Layout(
     ),
     xaxis=dict(showgrid=False),
     yaxis=dict(showgrid=False),
-    xaxis_zeroline=False,
-    yaxis_zeroline=False
+    paper_bgcolor='rgba(0,0,0,0)',
+    plot_bgcolor='rgba(0,0,0,0)'
 )
 
 fig = go.Figure(data=gos, layout=layout)
