@@ -17,6 +17,7 @@ from datasets import MeshData
 from utils import utils, writer, DataLoader, mesh_sampling
 
 from compressed_sensing_utils import gen_random_A, gen_binary_A, optimize_latent_rep, eval_reconstruction
+from visualizations_utils import visualize_data
 
 parser = argparse.ArgumentParser(description='mesh variational autoencoder')
 parser.add_argument('--exp_name', type=str, default='interpolation_exp')
@@ -103,8 +104,7 @@ up_transform_list = [
 ]
 del tmp
 
-
-args.batch_size = 25
+args.batch_size = 9
 # generate random measurement matrix
 template_mesh = Mesh(filename=template_fp)
 meshdata = MeshData(args.data_fp,
@@ -117,59 +117,50 @@ mean = meshdata.mean
 del meshdata
 # get a random test example
 for i, data in enumerate(test_loader):
-    batch = torch.squeeze(data.x[:, :, :])
+    batch = data
     if i == 0:
         break
 del test_loader
 
 measurement_sizes = [25, 50, 100, 250]
-#measurement_sizes = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]
-error_matrix = np.zeros([3, len(measurement_sizes), 4])
-for measurement_tpye in range(3):
-    for itr, msize in enumerate(measurement_sizes):
+for itr, msize in enumerate(measurement_sizes):
+    model = VAE(args.in_channels, args.out_channels, args.latent_channels,
+                spiral_indices_list, down_transform_list,
+                up_transform_list, lam=args.lam).to(device)
 
-        model = VAE(args.in_channels, args.out_channels, args.latent_channels,
-                    spiral_indices_list, down_transform_list,
-                    up_transform_list, lam=args.lam).to(device)
+    # load pretrained mesh VAE model
+    if not torch.cuda.is_available():
+        model.load_state_dict(
+            torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'), map_location=torch.device('cpu'))[
+                'model_state_dict'])
+    else:
+        model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'))['model_state_dict'])
 
-        # load pretrained mesh VAE model
-        if not torch.cuda.is_available():
-            model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'), map_location=torch.device('cpu'))['model_state_dict'])
-        else:
-            model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'))['model_state_dict'])
+    model.eval()
 
-        model.eval()
+    nv = template_mesh.v.shape[0]
 
-        nv = template_mesh.v.shape[0]
 
-        if measurement_tpye == 0:
-            A = gen_binary_A(args.batch_size, msize, nv)
-        else:
-            A = gen_random_A(args.batch_size, msize, nv)
-        A.requires_grad_(False)
+    A = gen_random_A(args.batch_size, msize, nv)
+    A.requires_grad_(False)
 
-        # get measurements
-        if measurement_tpye == 2:
-            measurements = batch
-        else:
-            measurements = torch.matmul(A, batch)
-        measurements.requires_grad_(False)
-        if measurement_tpye == 2:
-            _, pred, _, _ = model(measurements, also_give_map=True)
-        else:
-            pred = optimize_latent_rep(model, A, measurements, args.latent_channels)
-        if measurement_tpye == 0:
-            print('binary A')
-        else:
-            print('gaussian A')
-        print('measurement size: {}'.format(msize))
-        mean_error, std_error, median_error = eval_reconstruction(model, pred, batch, std, mean)
-        error_matrix[measurement_tpye, itr, 0] = msize
-        error_matrix[measurement_tpye, itr, 1] = mean_error
-        error_matrix[measurement_tpye, itr, 2] = std_error
-        error_matrix[measurement_tpye, itr, 3] = median_error
+    # get measurements
+    measurements = torch.matmul(A, batch.x)
+    measurements.requires_grad_(False)
 
-        np.save(osp.join(args.out_dir, 'compressed_sensing_err'), error_matrix)
 
-    if measurement_tpye == 2:
-        break
+    pred = optimize_latent_rep(model, A, measurements, args.latent_channels)
+
+    mean_error, std_error, median_error = eval_reconstruction(model, pred, batch.x, std, mean)
+
+    model.eval()
+    _, pred_vae, _, _ = model(batch.x, also_give_map=True)
+
+    mean_error, std_error, median_error = eval_reconstruction(model, pred_vae, batch.x, std, mean)
+
+    visualize_data(batch, [pred, pred_vae], std, mean, viz_width=9)
+
+
+
+
+
