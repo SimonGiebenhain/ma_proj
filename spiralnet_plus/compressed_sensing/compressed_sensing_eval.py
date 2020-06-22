@@ -12,9 +12,9 @@ import torch_geometric.transforms as T
 from psbody.mesh import Mesh
 from psbody.mesh.meshviewer import MeshViewers
 
-from reconstruction import AE, VAE, run, eval_error
-from datasets import MeshData
-from utils import utils, writer, DataLoader, mesh_sampling
+from spiralnet_plus.reconstruction import AE, VAE, run, eval_error
+from spiralnet_plus.datasets import MeshData
+from spiralnet_plus.utils import utils, writer, DataLoader, mesh_sampling
 
 from compressed_sensing_utils import gen_random_A, gen_binary_A, optimize_latent_rep, eval_reconstruction
 
@@ -54,8 +54,8 @@ parser.add_argument('--seed', type=int, default=1)
 args = parser.parse_args()
 
 args.work_dir = osp.dirname(osp.realpath(__file__))
-args.data_fp = osp.join(args.work_dir, '..', 'spiralnet_plus', 'data', args.dataset)
-args.out_dir = osp.join(args.work_dir, '..', 'spiralnet_plus', 'reconstruction', 'out', args.exp_name)
+args.data_fp = osp.join(args.work_dir, '..', 'data', args.dataset)
+args.out_dir = osp.join(args.work_dir, '..', 'reconstruction', 'out', args.exp_name)
 args.checkpoints_dir = osp.join(args.out_dir, 'checkpoints')
 print(args)
 

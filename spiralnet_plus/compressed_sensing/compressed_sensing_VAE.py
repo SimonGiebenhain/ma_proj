@@ -33,6 +33,7 @@ parser.add_argument('--latent_channels', type=int, default=16)
 parser.add_argument('--in_channels', type=int, default=3)
 parser.add_argument('--seq_length', type=int, default=[9, 9, 9, 9], nargs='+')
 parser.add_argument('--dilation', type=int, default=[1, 1, 1, 1], nargs='+')
+parser.add_argument('--lam', type=float, default=0.001)
 
 # optimizer hyperparmeters
 parser.add_argument('--optimizer', type=str, default='Adam')
@@ -102,7 +103,7 @@ del tmp
 
 model = VAE(args.in_channels, args.out_channels, args.latent_channels,
             spiral_indices_list, down_transform_list,
-            up_transform_list, lam=0.001).to(device)
+            up_transform_list, lam=args.lam).to(device)
 del up_transform_list, down_transform_list, spiral_indices_list
 print('Number of parameters: {}'.format(utils.count_parameters(model)))
 print(model)
@@ -153,7 +154,8 @@ for i in range(1000):
     optimizer.zero_grad()
     out = model.decode(latent_rep)
     loss = F.l1_loss(A @ out.view([-1, 3]), measurements, reduction='sum') / num_measurements
-    print(loss.item())
+    if i % 10 == 0:
+        print('Iteration: {}, Loss: {}'.format(i, loss.item()))
     loss.backward()
     optimizer.step()
 
@@ -173,7 +175,8 @@ for i in range(1000):
     optimizer.zero_grad()
     out_opt = model.decode(latent_rep)
     loss = F.l1_loss(A @ out_opt.view([-1, 3]), measurements, reduction='sum') / num_measurements
-    print(loss.item())
+    if i % 10 == 0:
+        print('Iteration: {}, Loss: {}'.format(i, loss.item()))
     loss.backward()
     optimizer.step()
 
