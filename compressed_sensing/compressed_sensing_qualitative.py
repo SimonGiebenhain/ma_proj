@@ -104,14 +104,15 @@ up_transform_list = [
 ]
 del tmp
 
-args.batch_size = 9
+args.batch_size = 5
 # generate random measurement matrix
 template_mesh = Mesh(filename=template_fp)
 meshdata = MeshData(args.data_fp,
                     template_fp,
                     split=args.split,
                     test_exp=args.test_exp)
-test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size)
+test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size,
+                         shuffle=True)
 std = meshdata.std
 mean = meshdata.mean
 del meshdata
@@ -122,7 +123,9 @@ for i, data in enumerate(test_loader):
         break
 del test_loader
 
-measurement_sizes = [25, 50, 100, 250]
+nv = template_mesh.v.shape[0]
+
+measurement_sizes = [100, 250, 500, 1000]#[10, 25, 50, 100, 250, 500, 1000]
 for itr, msize in enumerate(measurement_sizes):
     model = VAE(args.in_channels, args.out_channels, args.latent_channels,
                 spiral_indices_list, down_transform_list,
@@ -137,9 +140,6 @@ for itr, msize in enumerate(measurement_sizes):
         model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'))['model_state_dict'])
 
     model.eval()
-
-    nv = template_mesh.v.shape[0]
-
 
     A = gen_random_A(args.batch_size, msize, nv)
     A.requires_grad_(False)
@@ -158,7 +158,7 @@ for itr, msize in enumerate(measurement_sizes):
 
     mean_error, std_error, median_error = eval_reconstruction(model, pred_vae, batch.x, std, mean)
 
-    visualize_data(batch, [pred, pred_vae], std, mean, viz_width=9)
+    visualize_data(batch, [pred, pred_vae], std, mean, viz_width=5)
 
 
 

@@ -24,7 +24,7 @@ def optimize_latent_rep(model, A, measurements, latent_channels):
     optimizer = torch.optim.Adam([latent_rep],
                                  lr=0.1)
     #optimize
-    for i in range(500):
+    for i in range(1000):
         optimizer.zero_grad()
         out = model.decode(latent_rep)
         loss = F.l1_loss(torch.matmul(A, out), measurements, reduction='mean')
@@ -51,7 +51,5 @@ def eval_reconstruction(model, pred, true, std, mean):
     mean_error = tmp_error.view((-1,)).mean()
     std_error = tmp_error.view((-1,)).std()
     median_error = tmp_error.view((-1,)).median()
-    message = 'Error: {:.3f}+{:.3f} | {:.3f}'.format(mean_error, std_error,
-                                                     median_error)
-    print(message)
+
     return mean_error, std_error, median_error

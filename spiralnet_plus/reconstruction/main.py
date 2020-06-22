@@ -29,6 +29,8 @@ parser.add_argument('--latent_channels', type=int, default=16)
 parser.add_argument('--in_channels', type=int, default=3)
 parser.add_argument('--seq_length', type=int, default=[9, 9, 9, 9], nargs='+')
 parser.add_argument('--dilation', type=int, default=[1, 1, 1, 1], nargs='+')
+parser.add_argument('--lam', type=float, default=0.001)
+
 
 # optimizer hyperparmeters
 parser.add_argument('--optimizer', type=str, default='Adam')
@@ -114,7 +116,7 @@ del tmp
 
 model = VAE(args.in_channels, args.out_channels, args.latent_channels,
            spiral_indices_list, down_transform_list,
-           up_transform_list, 0.001).to(device)
+           up_transform_list, lam=0.001).to(device)
 
 del up_transform_list, down_transform_list, spiral_indices_list
 
@@ -139,8 +141,10 @@ print('creating training DataLoader')
 train_loader = DataLoader(meshdata.train_dataset,
                           batch_size=args.batch_size,
                           shuffle=True)
+
 print('creating testing DataLoader')
 test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size)
+
 
 data_mean = meshdata.mean
 data_std = meshdata.std
@@ -149,7 +153,10 @@ del meshdata
 run(model, train_loader, test_loader, args.epochs, optimizer, scheduler, writer, device)
 del train_loader
 
-#model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'checkpoint_300.pt'), map_location=torch.device('cpu'))[
-#                          'model_state_dict'])
+model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'ae_checkpoint_300.pt'), map_location=torch.device('cpu'))[
+                          'model_state_dict'])
+
+test_loss = test(model, test_loader, device)
+print(test_loss)
 
 eval_error(model, test_loader, device, data_mean, data_std, args.out_dir)

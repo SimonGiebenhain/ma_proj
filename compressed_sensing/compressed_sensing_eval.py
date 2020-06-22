@@ -104,14 +104,14 @@ up_transform_list = [
 del tmp
 
 
-args.batch_size = 25
+args.batch_size = 32
 # generate random measurement matrix
 template_mesh = Mesh(filename=template_fp)
 meshdata = MeshData(args.data_fp,
                     template_fp,
                     split=args.split,
                     test_exp=args.test_exp)
-test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size)
+test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size, shuffle=True)
 std = meshdata.std
 mean = meshdata.mean
 del meshdata
@@ -121,49 +121,63 @@ for i, data in enumerate(test_loader):
     if i == 0:
         break
 del test_loader
+nv = template_mesh.v.shape[0]
 
-measurement_sizes = [25, 50, 100, 250]
-#measurement_sizes = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]
+num_batches = 100
+measurement_sizes = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000]
 error_matrix = np.zeros([3, len(measurement_sizes), 4])
 for measurement_tpye in range(3):
     for itr, msize in enumerate(measurement_sizes):
+        mean_error = 0
+        std_error = 0
+        median_error = 0
+        for b in range(num_batches):
 
-        model = VAE(args.in_channels, args.out_channels, args.latent_channels,
-                    spiral_indices_list, down_transform_list,
-                    up_transform_list, lam=args.lam).to(device)
+            model = VAE(args.in_channels, args.out_channels, args.latent_channels,
+                        spiral_indices_list, down_transform_list,
+                        up_transform_list, lam=args.lam).to(device)
 
-        # load pretrained mesh VAE model
-        if not torch.cuda.is_available():
-            model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'), map_location=torch.device('cpu'))['model_state_dict'])
-        else:
-            model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'))['model_state_dict'])
+            # load pretrained mesh VAE model
+            if not torch.cuda.is_available():
+                model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'), map_location=torch.device('cpu'))['model_state_dict'])
+            else:
+                model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'))['model_state_dict'])
 
-        model.eval()
+            model.eval()
+            if measurement_tpye == 0:
+                A = gen_binary_A(args.batch_size, msize, nv)
+            else:
+                A = gen_random_A(args.batch_size, msize, nv)
+            A.requires_grad_(False)
 
-        nv = template_mesh.v.shape[0]
+            # get measurements
+            if measurement_tpye == 2:
+                measurements = batch
+            else:
+                measurements = torch.matmul(A, batch)
+            measurements.requires_grad_(False)
+            if measurement_tpye == 2:
+                _, pred, _, _ = model(measurements, also_give_map=True)
+            else:
+                pred = optimize_latent_rep(model, A, measurements, args.latent_channels)
 
+            mean_err, std_err, median_err = eval_reconstruction(model, pred, batch, std, mean)
+            mean_error += mean_err
+            std_error += std_err
+            median_error += mean_err
+
+        mean_error /= num_batches
+        std_error /= num_batches
+        median_error /= num_batches
         if measurement_tpye == 0:
-            A = gen_binary_A(args.batch_size, msize, nv)
+            print('binary measurement size: {}'.format(msize))
+        elif measurement_tpye == 1:
+            print('gaussian measurement size: {}'.format(msize))
         else:
-            A = gen_random_A(args.batch_size, msize, nv)
-        A.requires_grad_(False)
-
-        # get measurements
-        if measurement_tpye == 2:
-            measurements = batch
-        else:
-            measurements = torch.matmul(A, batch)
-        measurements.requires_grad_(False)
-        if measurement_tpye == 2:
-            _, pred, _, _ = model(measurements, also_give_map=True)
-        else:
-            pred = optimize_latent_rep(model, A, measurements, args.latent_channels)
-        if measurement_tpye == 0:
-            print('binary A')
-        else:
-            print('gaussian A')
-        print('measurement size: {}'.format(msize))
-        mean_error, std_error, median_error = eval_reconstruction(model, pred, batch, std, mean)
+            print('VAE on complete input')
+        message = 'Error: {:.3f}+{:.3f} | {:.3f}'.format(mean_error, std_error,
+                                                         median_error)
+        print(message)
         error_matrix[measurement_tpye, itr, 0] = msize
         error_matrix[measurement_tpye, itr, 1] = mean_error
         error_matrix[measurement_tpye, itr, 2] = std_error
@@ -171,5 +185,5 @@ for measurement_tpye in range(3):
 
         np.save(osp.join(args.out_dir, 'compressed_sensing_err'), error_matrix)
 
-    if measurement_tpye == 2:
-        break
+        if measurement_tpye == 2:
+            break

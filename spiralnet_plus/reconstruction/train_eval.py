@@ -27,7 +27,7 @@ def run(model, train_loader, test_loader, epochs, optimizer, scheduler, writer, 
 def train(model, optimizer, loader, device):
     model.train()
 
-    if model.isVAE:
+    if model.is_vae:
         total_loss = {'train_kld': 0, 'train_rec': 0, 'train': 0}
     else:
         total_loss = {'train_rec': 0}
@@ -35,7 +35,7 @@ def train(model, optimizer, loader, device):
     for data in loader:
         optimizer.zero_grad()
         x = data.x.to(device)
-        if model.isVAE:
+        if model.is_vae:
             out, mu, logvar = model(x)
             reconstruciton_loss = F.l1_loss(out, x, reduction='mean')
             KL_div = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
@@ -57,7 +57,7 @@ def train(model, optimizer, loader, device):
 def test(model, loader, device):
     model.eval()
 
-    if model.isVAE:
+    if model.is_vae:
         total_loss = {'test_kld': 0, 'test_rec': 0, 'test_map': 0, 'test': 0}
     else:
         total_loss = {'test_rec': 0}
@@ -65,7 +65,7 @@ def test(model, loader, device):
     with torch.no_grad():
         for i, data in enumerate(loader):
             x = data.x.to(device)
-            if model.isVAE:
+            if model.is_vae:
                 pred, pred_map, mu, logvar = model(x, also_give_map=True)
                 reconstruction_loss = F.l1_loss(pred, x, reduction='mean')
                 reconstruction_loss_map = F.l1_loss(pred_map, x, reduction='mean')
@@ -89,7 +89,7 @@ def eval_error(model, test_loader, device, mean, std, out_dir):
     with torch.no_grad():
         for i, data in enumerate(test_loader):
             x = data.x.to(device)
-            if model.isVAE:
+            if model.is_vae:
                 _, pred, _, _ = model(x, also_give_map=True)
             else:
                 pred = model(x)
