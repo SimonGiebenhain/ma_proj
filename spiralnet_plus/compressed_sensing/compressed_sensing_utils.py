@@ -17,10 +17,11 @@ def gen_binary_A(batch_size, measurement_size, num_nodes):
     return A
 
 
-def optimize_latent_rep(model, A, measurements, latent_channels):
+def optimize_latent_rep(model, A, measurements, latent_channels, device):
     # set up optimizer w.r.t. latent representation
     latent_rep = torch.zeros([measurements.shape[0], latent_channels])
     latent_rep.requires_grad_(True)
+    latent_rep.to(device)
     optimizer = torch.optim.Adam([latent_rep],
                                  lr=0.1)
     #optimize
@@ -33,9 +34,7 @@ def optimize_latent_rep(model, A, measurements, latent_channels):
     return out
 
 
-def eval_reconstruction(model, pred, true, std, mean):
-    model.eval()
-
+def eval_reconstruction(pred, true, std, mean):
     # Denormalize
     pred = (pred * std) + mean
     true = (true * std) + mean

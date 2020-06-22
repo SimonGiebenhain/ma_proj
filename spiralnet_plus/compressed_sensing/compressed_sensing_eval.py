@@ -12,11 +12,11 @@ import torch_geometric.transforms as T
 from psbody.mesh import Mesh
 from psbody.mesh.meshviewer import MeshViewers
 
-from spiralnet_plus.reconstruction import AE, VAE, run, eval_error
-from spiralnet_plus.datasets import MeshData
-from spiralnet_plus.utils import utils, writer, DataLoader, mesh_sampling
+from reconstruction import AE, VAE, run, eval_error
+from datasets import MeshData
+from utils import utils, writer, DataLoader, mesh_sampling
 
-from compressed_sensing_utils import gen_random_A, gen_binary_A, optimize_latent_rep, eval_reconstruction
+from compressed_sensing import gen_random_A, gen_binary_A, optimize_latent_rep, eval_reconstruction
 
 parser = argparse.ArgumentParser(description='mesh variational autoencoder')
 parser.add_argument('--exp_name', type=str, default='interpolation_exp')
@@ -115,12 +115,6 @@ test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size, shuf
 std = meshdata.std
 mean = meshdata.mean
 del meshdata
-# get a random test example
-for i, data in enumerate(test_loader):
-    batch = torch.squeeze(data.x[:, :, :])
-    if i == 0:
-        break
-del test_loader
 nv = template_mesh.v.shape[0]
 
 num_batches = 100
@@ -131,7 +125,10 @@ for measurement_tpye in range(3):
         mean_error = 0
         std_error = 0
         median_error = 0
-        for b in range(num_batches):
+        for b, data in enumerate(test_loader):
+            if b == num_batches:
+                break
+            batch = torch.squeeze(data.x[:, :, :]).to(device)
 
             model = VAE(args.in_channels, args.out_channels, args.latent_channels,
                         spiral_indices_list, down_transform_list,
@@ -149,6 +146,7 @@ for measurement_tpye in range(3):
             else:
                 A = gen_random_A(args.batch_size, msize, nv)
             A.requires_grad_(False)
+            A.to(device)
 
             # get measurements
             if measurement_tpye == 2:
@@ -159,9 +157,9 @@ for measurement_tpye in range(3):
             if measurement_tpye == 2:
                 _, pred, _, _ = model(measurements, also_give_map=True)
             else:
-                pred = optimize_latent_rep(model, A, measurements, args.latent_channels)
+                pred = optimize_latent_rep(model, A, measurements, args.latent_channels, device)
 
-            mean_err, std_err, median_err = eval_reconstruction(model, pred, batch, std, mean)
+            mean_err, std_err, median_err = eval_reconstruction(pred, batch, std, mean)
             mean_error += mean_err
             std_error += std_err
             median_error += mean_err
