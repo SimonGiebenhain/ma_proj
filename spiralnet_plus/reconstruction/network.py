@@ -129,7 +129,7 @@ class AE(nn.Module):
 
 class AD(nn.Module):
     def __init__(self, in_channels, out_channels, latent_channels,
-                 spiral_indices,  num_vert, up_transform, lam):
+                 spiral_indices, num_vert, up_transform, lam):
         super(AD, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels

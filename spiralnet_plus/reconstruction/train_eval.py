@@ -68,7 +68,7 @@ def train(model, optimizers, loader, device):
                 loss = F.l1_loss(pred, x, reduction='mean')
                 total_loss['train_rec'] += loss.item()
         elif model.type == 'AD':
-            z = model.z_train[idx, :]
+            z = model.z_train[idx, :].to(device)
             pred = model(z)
             rec_loss = F.l1_loss(pred, x, reduction='mean')
             reg_loss = torch.mean(torch.norm(z))
@@ -88,7 +88,6 @@ def train(model, optimizers, loader, device):
 
 def test(model, loader, device, test_optimizer):
     model.eval()
-
     if model.type == 'VAE':
         total_loss = {'test_kld': 0, 'test_rec': 0, 'test_map': 0, 'test': 0}
     elif model.type == 'AE' or model.type == 'AD':
@@ -97,7 +96,8 @@ def test(model, loader, device, test_optimizer):
         else:
             total_loss = {'test_rec': 0}
 
-    with torch.no_grad():
+    #TODO fix this!
+    #with torch.no_grad():
         for i, (data, idx) in enumerate(loader):
             x = data.x.to(device)
             if model.type == 'VAE':
@@ -113,17 +113,19 @@ def test(model, loader, device, test_optimizer):
             elif model.type == 'AE':
                 pred, z = model(x)
                 if model.lam != -1:
-                    total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean')
-                    total_loss['test_reg'] += torch.mean(torch.norm(z))
+                    total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean').item()
+                    total_loss['test_reg'] += torch.mean(torch.norm(z)).item()
                 else:
-                    total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean')
+                    total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean').item()
             elif model.type == 'AD':
                 test_optimizer.zero_grad()
-                z = model.z_test[idx, :]
+                z = model.z_test[idx, :].to(device)
                 pred = model(z)
-                total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean')
-                total_loss['test_reg'] += torch.mean(torch.norm(z))
-                loss = total_loss['test_rec'] + model.lam * total_loss['test_reg']
+                rec_loss = F.l1_loss(pred, x, reduction='mean')
+                reg_loss = torch.mean(torch.norm(z))
+                total_loss['test_rec'] += rec_loss.item()
+                total_loss['test_reg'] += reg_loss.item()
+                loss = rec_loss + model.lam * reg_loss
                 loss.backward()
                 test_optimizer.step()
             else:

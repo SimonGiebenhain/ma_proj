@@ -140,7 +140,7 @@ del meshdata
 is_AD = True
 if is_AD:
     model = AD(args.in_channels, args.out_channels, args.latent_channels,
-               spiral_indices_list, num_nodes,
+               spiral_indices_list, down_transform_list[-1].size(0),
                up_transform_list, lam=0.001).to(device)
 
 else:
