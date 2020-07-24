@@ -137,7 +137,7 @@ num_test_graph = meshdata.num_test_graph
 num_nodes = meshdata.num_nodes
 del meshdata
 
-is_AD = True
+is_AD = False
 if is_AD:
     model = AD(args.in_channels, args.out_channels, args.latent_channels,
                spiral_indices_list, num_nodes,
@@ -146,7 +146,7 @@ if is_AD:
 else:
     model = AE(args.in_channels, args.out_channels, args.latent_channels,
                spiral_indices_list, down_transform_list,
-               up_transform_list, lam=0.0001).to(device)
+               up_transform_list, lam=0.001).to(device)
 
 del up_transform_list, down_transform_list, spiral_indices_list
 
@@ -163,7 +163,7 @@ if is_AD:
     latents = model.init_latent_space(num_train_graph, device)
     latents.requires_grad = True
 
-    latents_optimizer = torch.optim.Adam(latents,
+    latents_optimizer = torch.optim.Adam([latents],
                                          lr=args.latents_lr,
                                          weight_decay=args.weight_decay)
     latents_scheduler = torch.optim.lr_scheduler.StepLR(latents_optimizer,

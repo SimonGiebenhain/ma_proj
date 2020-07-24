@@ -37,7 +37,7 @@ def train(model, optimizer, loader, device):
 
 
 #TODO how to get indices from current batch?
-    for data in loader:
+    for (data, idx) in loader:
         optimizer.zero_grad()
         x = data.x.to(device)
         if model.is_vae:
@@ -79,7 +79,7 @@ def test(model, loader, device):
             total_loss = {'test_rec': 0}
 
     with torch.no_grad():
-        for i, data in enumerate(loader):
+        for i, (data, idx) in enumerate(loader):
             x = data.x.to(device)
             if model.is_vae:
                 pred, pred_map, mu, logvar = model(x, also_give_map=True)
@@ -108,7 +108,7 @@ def eval_error(model, test_loader, device, mean, std, out_dir):
 
     errors = []
     with torch.no_grad():
-        for i, data in enumerate(test_loader):
+        for i, (data, idx) in enumerate(test_loader):
             x = data.x.to(device)
             if model.is_vae:
                 _, pred, _, _ = model(x, also_give_map=True)

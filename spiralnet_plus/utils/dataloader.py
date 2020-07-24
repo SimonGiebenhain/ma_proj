@@ -6,7 +6,7 @@ from torch_geometric.data import Data, Batch
 
 class DataLoader(torch.utils.data.DataLoader):
     def __init__(self, dataset, batch_size=1, shuffle=False, **kwargs):
-        def collate(data_list):
+        def collate(data_list, idx):
             batch = Batch()
             batch.batch = []
             for key in data_list[0].keys:
@@ -18,7 +18,7 @@ class DataLoader(torch.utils.data.DataLoader):
                     item = torch.full((num_nodes, ), i, dtype=torch.short)
                     batch.batch.append(item)
             batch.batch = torch.cat(batch.batch, dim=0)
-            return batch
+            return batch, idx
 
         super(DataLoader, self).__init__(dataset,
                                          batch_size,
