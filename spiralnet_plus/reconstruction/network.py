@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch_scatter import scatter_add
+import numpy as np
 
 from conv import SpiralConv
 
@@ -124,6 +125,67 @@ class AE(nn.Module):
         z = self.encoder(x)
         out = self.decoder(z)
         return out, z
+
+
+class AD(nn.Module):
+    def __init__(self, in_channels, out_channels, latent_channels,
+                 spiral_indices,  num_vert, up_transform, lam):
+        super(AD, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.latent_channels = latent_channels
+        self.spiral_indices = spiral_indices
+        self.up_transform = up_transform
+        self.num_vert = num_vert
+        self.lam=lam
+        self.is_vae = False
+        self.z = None
+
+        # decoder
+        self.de_layers = nn.ModuleList()
+        self.de_layers.append(
+            nn.Linear(latent_channels, self.num_vert * out_channels[-1]))
+        for idx in range(len(out_channels)):
+            if idx == 0:
+                self.de_layers.append(
+                    SpiralDeblock(out_channels[-idx - 1],
+                                  out_channels[-idx - 1],
+                                  self.spiral_indices[-idx - 1]))
+            else:
+                self.de_layers.append(
+                    SpiralDeblock(out_channels[-idx], out_channels[-idx - 1],
+                                  self.spiral_indices[-idx - 1]))
+        self.de_layers.append(
+            SpiralConv(out_channels[0], in_channels, self.spiral_indices[0]))
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for name, param in self.named_parameters():
+            if 'bias' in name:
+                nn.init.constant_(param, 0)
+            else:
+                nn.init.xavier_uniform_(param)
+    def init_latent_space(self, num_inputs, device):
+        self.z = torch.from_numpy(np.random.normal(0, 0.01, [num_inputs, self.latent_channels])).to(device)
+        return self.z
+
+    def decoder(self, x):
+        num_layers = len(self.de_layers)
+        num_features = num_layers - 2
+        for i, layer in enumerate(self.de_layers):
+            if i == 0:
+                x = layer(x)
+                x = x.view(-1, self.num_vert, self.out_channels[-1])
+            elif i != num_layers - 1:
+                x = layer(x, self.up_transform[num_features - i])
+            else:
+                x = layer(x)
+        return x
+
+    def forward(self, z):
+        out = self.decoder(z)
+        return out
 
 
 class VAE(nn.Module):

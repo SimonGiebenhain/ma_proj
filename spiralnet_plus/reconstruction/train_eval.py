@@ -36,7 +36,7 @@ def train(model, optimizer, loader, device):
             total_loss = {'train_rec': 0}
 
 
-
+#TODO how to get indices from current batch?
     for data in loader:
         optimizer.zero_grad()
         x = data.x.to(device)
@@ -113,7 +113,7 @@ def eval_error(model, test_loader, device, mean, std, out_dir):
             if model.is_vae:
                 _, pred, _, _ = model(x, also_give_map=True)
             else:
-                pred = model(x)
+                pred, _ = model(x)
             num_graphs = data.num_graphs
             reshaped_pred = (pred.view(num_graphs, -1, 3).cpu() * std) + mean
             reshaped_x = (x.view(num_graphs, -1, 3).cpu() * std) + mean

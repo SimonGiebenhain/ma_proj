@@ -8,7 +8,7 @@ import torch.backends.cudnn as cudnn
 import torch_geometric.transforms as T
 from psbody.mesh import Mesh
 
-from reconstruction import AE, VAE, run, eval_error, test
+from reconstruction import AE, AD, VAE, run, eval_error, test
 from datasets import MeshData
 from utils import utils, writer, DataLoader, mesh_sampling
 
@@ -35,6 +35,7 @@ parser.add_argument('--lam', type=float, default=0.001)
 # optimizer hyperparmeters
 parser.add_argument('--optimizer', type=str, default='Adam')
 parser.add_argument('--lr', type=float, default=1e-3)
+parser.add_argument('--latents_lr', type=float, default=1e-2)
 parser.add_argument('--lr_decay', type=float, default=0.99)
 parser.add_argument('--decay_step', type=int, default=1)
 parser.add_argument('--weight_decay', type=float, default=0)
@@ -113,23 +114,6 @@ up_transform_list = [
 ]
 del tmp
 
-
-model = AE(args.in_channels, args.out_channels, args.latent_channels,
-           spiral_indices_list, down_transform_list,
-           up_transform_list, lam=0.0001).to(device)
-
-del up_transform_list, down_transform_list, spiral_indices_list
-
-print('Number of parameters: {}'.format(utils.count_parameters(model)))
-print(model)
-
-optimizer = torch.optim.Adam(model.parameters(),
-                             lr=args.lr,
-                             weight_decay=args.weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
-                                            args.decay_step,
-                                            gamma=args.lr_decay)
-
 # load dataset
 template_fp = osp.join(args.data_fp, 'template', 'template.obj')
 print('Creating MeshData obj')
@@ -148,7 +132,53 @@ test_loader = DataLoader(meshdata.test_dataset, batch_size=args.batch_size)
 
 data_mean = meshdata.mean
 data_std = meshdata.std
+num_train_graph = meshdata.num_train_graph
+num_test_graph = meshdata.num_test_graph
+num_nodes = meshdata.num_nodes
 del meshdata
+
+is_AD = True
+if is_AD:
+    model = AD(args.in_channels, args.out_channels, args.latent_channels,
+               spiral_indices_list, num_nodes,
+               up_transform_list, lam=0.001).to(device)
+
+else:
+    model = AE(args.in_channels, args.out_channels, args.latent_channels,
+               spiral_indices_list, down_transform_list,
+               up_transform_list, lam=0.0001).to(device)
+
+del up_transform_list, down_transform_list, spiral_indices_list
+
+print('Number of parameters: {}'.format(utils.count_parameters(model)))
+print(model)
+
+if is_AD:
+    params_optimizer = torch.optim.Adam(model.parameters(),
+                                 lr=args.lr,
+                                 weight_decay=args.weight_decay)
+    params_scheduler = torch.optim.lr_scheduler.StepLR(params_optimizer,
+                                                args.decay_step,
+                                                gamma=args.lr_decay)
+    latents = model.init_latent_space(num_train_graph, device)
+    latents.requires_grad = True
+
+    latents_optimizer = torch.optim.Adam(latents,
+                                         lr=args.latents_lr,
+                                         weight_decay=args.weight_decay)
+    latents_scheduler = torch.optim.lr_scheduler.StepLR(latents_optimizer,
+                                                       args.decay_step,
+                                                       gamma=args.lr_decay)
+    optimizers = [params_optimizer, latents_optimizer]
+    schedulers = [params_scheduler, latents_scheduler]
+
+else:
+    optimizer = torch.optim.Adam(model.parameters(),
+                                 lr=args.lr,
+                                 weight_decay=args.weight_decay)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
+                                                args.decay_step,
+                                                gamma=args.lr_decay)
 
 run(model, train_loader, test_loader, args.epochs, optimizer, scheduler, writer, device)
 del train_loader
