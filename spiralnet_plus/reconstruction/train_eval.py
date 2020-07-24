@@ -30,7 +30,12 @@ def train(model, optimizer, loader, device):
     if model.is_vae:
         total_loss = {'train_kld': 0, 'train_rec': 0, 'train': 0}
     else:
-        total_loss = {'train_rec': 0}
+        if model.lam != -1:
+            total_loss = {'train_rec': 0, 'train_reg': 0}
+        else:
+            total_loss = {'train_rec': 0}
+
+
 
     for data in loader:
         optimizer.zero_grad()
@@ -45,9 +50,17 @@ def train(model, optimizer, loader, device):
             total_loss['train_rec'] += reconstruciton_loss.item()
             total_loss['train'] += loss.item()
         else:
-            out = model(x)
-            loss = F.l1_loss(out, x, reduction='mean')
-            total_loss['train_rec'] += loss.item()
+            pred, z = model(x)
+            if model.lam != -1:
+                rec_loss = F.l1_loss(pred, x, reduction='mean')
+                reg_loss = torch.mean(torch.norm(z))
+                loss = rec_loss + model.lam * reg_loss
+                total_loss['train_rec'] += rec_loss.item()
+                total_loss['train_reg'] += reg_loss.item()
+            else:
+                loss = F.l1_loss(pred, x, reduction='mean')
+                total_loss['train_rec'] += loss.item()
+
         loss.backward()
         optimizer.step()
 
@@ -60,7 +73,10 @@ def test(model, loader, device):
     if model.is_vae:
         total_loss = {'test_kld': 0, 'test_rec': 0, 'test_map': 0, 'test': 0}
     else:
-        total_loss = {'test_rec': 0}
+        if model.lam != -1:
+            total_loss = {'test_rec': 0, 'test_reg': 0}
+        else:
+            total_loss = {'test_rec': 0}
 
     with torch.no_grad():
         for i, data in enumerate(loader):
@@ -76,8 +92,13 @@ def test(model, loader, device):
                 total_loss['test_map'] += reconstruction_loss_map.item()
                 total_loss['test'] += combined_loss.item()
             else:
-                pred = model(x)
-                total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean')
+                pred, z = model(x)
+                if model.lam != -1:
+                    total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean')
+                    total_loss['test_reg'] += torch.mean(torch.norm(z))
+                else:
+                    total_loss['test_rec'] += F.l1_loss(pred, x, reduction='mean')
+
 
     return {k: v/len(loader) for (k, v) in total_loss.items()}
 

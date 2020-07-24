@@ -46,7 +46,7 @@ class SpiralDeblock(nn.Module):
 
 class AE(nn.Module):
     def __init__(self, in_channels, out_channels, latent_channels,
-                 spiral_indices, down_transform, up_transform):
+                 spiral_indices, down_transform, up_transform, lam=-1):
         super(AE, self).__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -55,6 +55,7 @@ class AE(nn.Module):
         self.down_transform = down_transform
         self.up_transform = up_transform
         self.num_vert = self.down_transform[-1].size(0)
+        self.lam=lam
         self.is_vae = False
 
         # encoder
@@ -122,7 +123,7 @@ class AE(nn.Module):
     def forward(self, x, *indices):
         z = self.encoder(x)
         out = self.decoder(z)
-        return out
+        return out, z
 
 
 class VAE(nn.Module):

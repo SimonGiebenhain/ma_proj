@@ -114,9 +114,9 @@ up_transform_list = [
 del tmp
 
 
-model = VAE(args.in_channels, args.out_channels, args.latent_channels,
+model = AE(args.in_channels, args.out_channels, args.latent_channels,
            spiral_indices_list, down_transform_list,
-           up_transform_list, lam=0.001).to(device)
+           up_transform_list, lam=0.0001).to(device)
 
 del up_transform_list, down_transform_list, spiral_indices_list
 
@@ -153,8 +153,8 @@ del meshdata
 run(model, train_loader, test_loader, args.epochs, optimizer, scheduler, writer, device)
 del train_loader
 
-model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'ae_checkpoint_300.pt'), map_location=torch.device('cpu'))[
-                          'model_state_dict'])
+#model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'reg_ae_checkpoint_300.pt'), map_location=torch.device('cpu'))[
+#                          'model_state_dict'])
 
 test_loss = test(model, test_loader, device)
 print(test_loss)
