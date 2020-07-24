@@ -137,7 +137,7 @@ num_test_graph = meshdata.num_test_graph
 num_nodes = meshdata.num_nodes
 del meshdata
 
-is_AD = False
+is_AD = True
 if is_AD:
     model = AD(args.in_channels, args.out_channels, args.latent_channels,
                spiral_indices_list, num_nodes,
@@ -160,17 +160,25 @@ if is_AD:
     params_scheduler = torch.optim.lr_scheduler.StepLR(params_optimizer,
                                                 args.decay_step,
                                                 gamma=args.lr_decay)
-    latents = model.init_latent_space(num_train_graph, device)
-    latents.requires_grad = True
+    model.init_latent_space(num_train_graph, num_test_graph, device)
+    model.z_train.requires_grad = True
+    model.z_test.requires_grad = True
 
-    latents_optimizer = torch.optim.Adam([latents],
+    latents_optimizer_train = torch.optim.Adam([model.z_train],
                                          lr=args.latents_lr,
                                          weight_decay=args.weight_decay)
-    latents_scheduler = torch.optim.lr_scheduler.StepLR(latents_optimizer,
+    latents_scheduler_train = torch.optim.lr_scheduler.StepLR(latents_optimizer_train,
                                                        args.decay_step,
                                                        gamma=args.lr_decay)
-    optimizers = [params_optimizer, latents_optimizer]
-    schedulers = [params_scheduler, latents_scheduler]
+    latents_optimizer_test = torch.optim.Adam([model.z_test],
+                                               lr=args.latents_lr,
+                                               weight_decay=args.weight_decay)
+    latents_scheduler_test = torch.optim.lr_scheduler.StepLR(latents_optimizer_test,
+                                                              args.decay_step,
+                                                              gamma=args.lr_decay)
+
+    optimizers = [params_optimizer, latents_optimizer_train, latents_optimizer_test]
+    schedulers = [params_scheduler, latents_scheduler_train, latents_scheduler_test]
 
 else:
     optimizer = torch.optim.Adam(model.parameters(),
@@ -179,8 +187,11 @@ else:
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer,
                                                 args.decay_step,
                                                 gamma=args.lr_decay)
+    optimizers = [optimizer]
+    schedulers = [scheduler]
 
-run(model, train_loader, test_loader, args.epochs, optimizer, scheduler, writer, device)
+run(model, train_loader, test_loader, args.epochs, optimizers, schedulers, writer, device)
+
 del train_loader
 
 #model.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'reg_ae_checkpoint_300.pt'), map_location=torch.device('cpu'))[

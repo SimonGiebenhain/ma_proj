@@ -57,7 +57,7 @@ class AE(nn.Module):
         self.up_transform = up_transform
         self.num_vert = self.down_transform[-1].size(0)
         self.lam=lam
-        self.is_vae = False
+        self.type = 'AE'
 
         # encoder
         self.en_layers = nn.ModuleList()
@@ -138,8 +138,9 @@ class AD(nn.Module):
         self.up_transform = up_transform
         self.num_vert = num_vert
         self.lam=lam
-        self.is_vae = False
-        self.z = None
+        self.type= 'AD'
+        self.z_train = None
+        self.z_test = None
 
         # decoder
         self.de_layers = nn.ModuleList()
@@ -166,9 +167,14 @@ class AD(nn.Module):
                 nn.init.constant_(param, 0)
             else:
                 nn.init.xavier_uniform_(param)
-    def init_latent_space(self, num_inputs, device):
-        self.z = torch.from_numpy(np.random.normal(0, 0.01, [num_inputs, self.latent_channels])).to(device)
-        return self.z
+    def init_latent_space(self, num_inputs_train, num_inputs_test, device):
+        self.z_train = torch.from_numpy(
+            np.random.normal(0, 0.01, [num_inputs_train, self.latent_channels])
+        ).float().to(device)
+        self.z_test = torch.from_numpy(
+            np.random.normal(0, 0.01, [num_inputs_test, self.latent_channels])
+        ).float().to(device)
+
 
     def decoder(self, x):
         num_layers = len(self.de_layers)
@@ -187,6 +193,14 @@ class AD(nn.Module):
         out = self.decoder(z)
         return out
 
+    def freeze_weights(self):
+        for param in self.parameters():
+            param.requires_grad = False
+
+    def unfreeze_weights(self):
+        for param in self.parameters():
+            param.requires_grad = True
+
 
 class VAE(nn.Module):
     def __init__(self, in_channels, out_channels, latent_channels,
@@ -200,7 +214,7 @@ class VAE(nn.Module):
         self.up_transform = up_transform
         self.num_vert = self.down_transform[-1].size(0)
         self.lam = lam
-        self.is_vae = True
+        self.type = 'VAE'
 
 
         # encoder
