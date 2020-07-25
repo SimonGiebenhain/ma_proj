@@ -7,10 +7,14 @@ from psbody.mesh import Mesh
 from utils import DataLoader
 from datasets import MeshData
 import torch
-from reconstruction import AE, VAE
+from reconstruction import AE, AD, VAE
 import pickle
 import utils
 import plotly.express as px
+from compressed_sensing_utils import gen_random_A, gen_binary_A, optimize_latent_rep, eval_reconstruction
+
+
+from visualizations_utils import visualize_data
 
 
 def construct_geometric_object(obj_fp, offset):
@@ -116,13 +120,13 @@ mean = meshdata.mean
 std = meshdata.std
 del meshdata
 
-for i, data in enumerate(test_loader):
+for i, (data, idx) in enumerate(test_loader):
     batch = data
-    if i == 1:
+    if i == 0:
         break
 del test_loader
 
-# load AE
+#### AE ####
 model_ae = AE(args.in_channels, args.out_channels, args.latent_channels,
            spiral_indices_list, down_transform_list,
            up_transform_list).to(device)
@@ -131,96 +135,44 @@ model_ae.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'ae_checkpoin
                                     map_location=torch.device('cpu')
                                     )['model_state_dict'])
 model_ae.eval()
+rec_ae, _ = model_ae(batch.x)
+del model_ae
 
-#load  VAE
-model_vae = VAE(args.in_channels, args.out_channels, args.latent_channels,
+
+#### regularized AE ####
+model_reg_ae = AE(args.in_channels, args.out_channels, args.latent_channels,
            spiral_indices_list, down_transform_list,
            up_transform_list, lam=0.001).to(device)
 
-model_vae.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'),
-                                     map_location=torch.device('cpu')
-                                     )['model_state_dict'])
-model_vae.eval()
+model_reg_ae.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'ae_reg_checkpoint.pt'),
+                                    map_location=torch.device('cpu')
+                                    )['model_state_dict'])
+model_reg_ae.eval()
+rec_reg_ae, _ = model_reg_ae(batch.x)
+del model_reg_ae
 
-#reconstruct
-rec_ae = model_ae(batch.x)
-_, rec_vae, _, _ = model_vae(batch.x)
-
-# denormalize
-batch.x *= std
-batch.x += mean
-
-rec_ae *= std
-rec_ae += mean
-
-rec_vae *= std
-rec_vae += mean
-
-rec_errors = torch.norm(batch.x - rec_ae, dim=2)
-min_error = 0
-max_error = torch.max(torch.max(rec_errors)).item()
-
-gos = []
-for i in range(9):
-    for j in range(3):
-        offset = [i*0.25, -j*0.35, 0]
-        if j == 0:
-            gos.append(get_go_from_data(v=np.squeeze(batch.x[i, :, :].numpy()),
-                                        f=np.squeeze(batch.face[i, :, :].numpy()),
-                                        color=np.zeros(batch.x.shape[0]),
-                                        color_min=min_error,
-                                        color_max=max_error,
-                                        offset=offset)
-                       )
-        if j == 1:
-            v_pred = np.squeeze(rec_ae[i, :, :].detach().numpy())
-            v_true = np.squeeze(batch.x[i, :, :].detach().numpy())
-            rec_error = np.linalg.norm(v_pred-v_true, axis=1)
-            gos.append(get_go_from_data(v=v_pred,
-                                        f=np.squeeze(batch.face[i, :, :].numpy()),
-                                        color=rec_error,
-                                        color_min=min_error,
-                                        color_max=max_error,
-                                        offset=offset,
-                                        is_first=i==0)
-                       )
-        if j == 2:
-            v_pred = np.squeeze(rec_vae[i, :, :].detach().numpy())
-            v_true = np.squeeze(batch.x[i, :, :].detach().numpy())
-            rec_error = np.linalg.norm(v_pred - v_true, axis=1)
-            gos.append(get_go_from_data(v=v_pred,
-                                        f=np.squeeze(batch.face[i, :, :].numpy()),
-                                        color=rec_error,
-                                        color_min=min_error,
-                                        color_max=max_error,
-                                        offset=offset)
-                       )
+#### AD ####
+model_ad = AD(args.in_channels, args.out_channels, args.latent_channels,
+           spiral_indices_list, down_transform_list[-1].size(0),
+           up_transform_list, lam=0.001).to(device)
 
 
-layout = Layout(
-    autosize=True,
-    scene=dict(
-        aspectmode='data'
-    ),
-    margin=dict(
-        l=50,
-        r=50,
-        b=0,
-        t=0,
-        pad=4
-    ),
-    scene_camera=dict(
-        up=dict(x=0, y=1, z=0),
-        center=dict(x=0, y=0, z=0),
-        eye=dict(x=0, y=0, z=2)
-    ),
-    xaxis=dict(showgrid=False),
-    yaxis=dict(showgrid=False),
-    paper_bgcolor='rgba(0,0,0,0)',
-    plot_bgcolor='rgba(0,0,0,0)'
-)
-
-fig = go.Figure(data=gos, layout=layout)
+measurements = batch.x
+measurements.requires_grad_(False)
 
 
-fig.show()
+rec_ad = optimize_latent_rep(model_ad, None, measurements, args.latent_channels, device)
+
+#### VAE ####
+#model_vae = VAE(args.in_channels, args.out_channels, args.latent_channels,
+#           spiral_indices_list, down_transform_list,
+#           up_transform_list, lam=0.001).to(device)
+#
+#model_vae.load_state_dict(torch.load(osp.join(args.checkpoints_dir, 'vae_checkpoint.pt'),
+#                                     map_location=torch.device('cpu')
+#                                     )['model_state_dict'])
+#model_vae.eval()
+#_, rec_vae, _, _ = model_vae(batch.x, also_give_map=True)
+#del model_vae
+
+visualize_data(batch, [rec_ae, rec_reg_ae, rec_ad], std, mean, viz_width=9)

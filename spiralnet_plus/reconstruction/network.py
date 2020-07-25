@@ -99,7 +99,7 @@ class AE(nn.Module):
             else:
                 nn.init.xavier_uniform_(param)
 
-    def encoder(self, x):
+    def encode(self, x):
         for i, layer in enumerate(self.en_layers):
             if i != len(self.en_layers) - 1:
                 x = layer(x, self.down_transform[i])
@@ -108,7 +108,7 @@ class AE(nn.Module):
                 x = layer(x)
         return x
 
-    def decoder(self, x):
+    def decode(self, x):
         num_layers = len(self.de_layers)
         num_features = num_layers - 2
         for i, layer in enumerate(self.de_layers):
@@ -122,8 +122,8 @@ class AE(nn.Module):
         return x
 
     def forward(self, x, *indices):
-        z = self.encoder(x)
-        out = self.decoder(z)
+        z = self.encode(x)
+        out = self.decode(z)
         return out, z
 
 
@@ -176,7 +176,7 @@ class AD(nn.Module):
         ).float().to(device)
 
 
-    def decoder(self, x):
+    def decode(self, x):
         num_layers = len(self.de_layers)
         num_features = num_layers - 2
         for i, layer in enumerate(self.de_layers):
@@ -190,7 +190,7 @@ class AD(nn.Module):
         return x
 
     def forward(self, z):
-        out = self.decoder(z)
+        out = self.decode(z)
         return out
 
     def freeze_weights(self):

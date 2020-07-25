@@ -35,7 +35,7 @@ parser.add_argument('--lam', type=float, default=0.001)
 # optimizer hyperparmeters
 parser.add_argument('--optimizer', type=str, default='Adam')
 parser.add_argument('--lr', type=float, default=1e-3)
-parser.add_argument('--latents_lr', type=float, default=1e-2)
+parser.add_argument('--latents_lr', type=float, default=1e-1)
 parser.add_argument('--lr_decay', type=float, default=0.99)
 parser.add_argument('--decay_step', type=int, default=1)
 parser.add_argument('--weight_decay', type=float, default=0)

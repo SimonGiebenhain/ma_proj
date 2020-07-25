@@ -40,13 +40,13 @@ def get_geometric_object(v, f, color, color_min, color_max, offset, is_first=Fal
 
 def visualize_data(batch, reconstructions, std, mean, viz_width=9):
     # denormalize
-    batch.x *= std
-    batch.x += mean
+    ground_truth = (batch.x[:viz_width, :, :] * std) + mean
 
     for i, rec in enumerate(reconstructions):
-        reconstructions[i] = (rec * std) + mean
+        reconstructions[i] = (rec[:viz_width, :, :] * std) + mean
 
-    rec_errors = [torch.norm(batch.x - rec, dim=2) for rec in reconstructions]
+
+    rec_errors = [torch.norm(ground_truth - rec, dim=2) for rec in reconstructions]
     min_error = 0
     max_errors = [torch.max(torch.max(rec_err)).item() for rec_err in rec_errors]
     max_error = max(max_errors)
@@ -56,25 +56,27 @@ def visualize_data(batch, reconstructions, std, mean, viz_width=9):
         for j in range(len(reconstructions)+1):
             offset = [i*0.25, -j*0.35, 0]
             if j == 0:
-                geometric_objs.append(get_geometric_object(v=np.squeeze(batch.x[i, :, :].numpy()),
-                                            f=np.squeeze(batch.face[i, :, :].numpy()),
-                                            color=np.zeros(batch.x.shape[0]),
-                                            color_min=min_error,
-                                            color_max=max_error,
-                                            offset=offset,
-                                            is_first=i == 0)
-                           )
+                geometric_objs.append(
+                    get_geometric_object(v=np.squeeze(ground_truth[i, :, :].numpy()),
+                                         f=np.squeeze(batch.face[i, :, :].numpy()),
+                                         color=np.zeros(batch.x.shape[0]),
+                                         color_min=min_error,
+                                         color_max=max_error,
+                                         offset=offset,
+                                         is_first=i == 0)
+                )
             else:
                 v_pred = np.squeeze(reconstructions[j-1][i, :, :].detach().numpy())
-                v_true = np.squeeze(batch.x[i, :, :].detach().numpy())
+                v_true = np.squeeze(ground_truth[i, :, :].detach().numpy())
                 rec_error = np.linalg.norm(v_pred-v_true, axis=1)
-                geometric_objs.append(get_geometric_object(v=v_pred,
-                                            f=np.squeeze(batch.face[i, :, :].numpy()),
-                                            color=rec_error,
-                                            color_min=min_error,
-                                            color_max=max_error,
-                                            offset=offset)
-                           )
+                geometric_objs.append(
+                    get_geometric_object(v=v_pred,
+                                         f=np.squeeze(batch.face[i, :, :].numpy()),
+                                         color=rec_error,
+                                         color_min=min_error,
+                                         color_max=max_error,
+                                         offset=offset)
+                )
 
     layout = Layout(
         autosize=True,

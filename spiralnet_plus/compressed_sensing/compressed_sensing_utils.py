@@ -19,16 +19,16 @@ def gen_binary_A(batch_size, measurement_size, num_nodes):
 
 def optimize_latent_rep(model, A, measurements, latent_channels, device):
     # set up optimizer w.r.t. latent representation
-    latent_rep = torch.zeros([measurements.shape[0], latent_channels])
-    latent_rep.requires_grad_(True)
-    latent_rep.to(device)
-    optimizer = torch.optim.Adam([latent_rep],
-                                 lr=0.1)
+    latent_rep = torch.zeros([measurements.shape[0], latent_channels], requires_grad=True, device=device)
+    optimizer = torch.optim.Adam([latent_rep], lr=0.1)
     #optimize
-    for i in range(1000):
+    for i in range(500):
         optimizer.zero_grad()
         out = model.decode(latent_rep)
-        loss = F.l1_loss(torch.matmul(A, out), measurements, reduction='mean')
+        if A is None:
+            loss = F.l1_loss(out, measurements, reduction='mean')
+        else:
+            loss = F.l1_loss(torch.matmul(A, out), measurements, reduction='mean')
         loss.backward()
         optimizer.step()
     return out
